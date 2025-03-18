@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { convertToSeconds } from "./timeConverter";
+import * as XLSX from "xlsx";
 
 let classes = []; // Class array
 let students = {}; // Students dict, key is a student fullName and the value is a Student class.
@@ -134,14 +135,29 @@ const FileProcessor = () => {
           }
           resultContent += classesPresentAmount + "/" + classes.length + "\r\n";
         });
+
         // Create a Blob for the result file
-        const blob = new Blob([resultContent], { type: "text/csv" });
+        const fileType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8';
+        resultContent = "cos\tcos\r\ncos\tcos\r\ncos\tcos\t1\t2/3\t3/4\r\n";
+        const data = resultContent.split("\n").map(row => row.split("\t"));
+        const ws = XLSX.utils.json_to_sheet(data, { skipHeader: true });
+        Object.keys(ws).forEach((cell) => { // prevent excel from treating strings as dates
+          if (!cell.startsWith("!")) {
+            ws[cell].t = "s"; // Set cell type to string
+          }
+        });
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Obecnosci1');
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], { type: fileType });
+        // const blob = new Blob([resultContent], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
 
         // Programmatically create a download link
         const link = document.createElement("a");
         link.href = url;
-        link.download = "obecności.csv";
+        link.download = "obecności.xlsx";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
