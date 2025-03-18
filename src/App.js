@@ -138,7 +138,6 @@ const FileProcessor = () => {
 
         // Create a Blob for the result file
         const fileType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8';
-        resultContent = "cos\tcos\r\ncos\tcos\r\ncos\tcos\t1\t2/3\t3/4\r\n";
         const data = resultContent.split("\n").map(row => row.split("\t"));
         const ws = XLSX.utils.json_to_sheet(data, { skipHeader: true });
         Object.keys(ws).forEach((cell) => { // prevent excel from treating strings as dates
