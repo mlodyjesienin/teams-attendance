@@ -156,7 +156,13 @@ const FileProcessor = () => {
         // Programmatically create a download link
         const link = document.createElement("a");
         link.href = url;
-        link.download = "obecności.xlsx";
+        const currentDate = new Date().toLocaleDateString("pl-PL", { 
+          day: "2-digit", 
+          month: "2-digit", 
+          year: "numeric" 
+        }).replace(/\//g, '-');
+
+        link.download = `obecności-${currentDate}.xlsx`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
