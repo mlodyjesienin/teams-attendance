@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { convertToSeconds } from "./timeConverter";
 import * as XLSX from "xlsx";
+import jschardet from "jschardet";
 
 let classes = []; // Class array
 let students = {}; // Students dict, key is a student fullName and the value is a Student class.
@@ -43,12 +44,41 @@ const processCsvFiles = async (files) => {
     fileId++;
     const currentClass = new Class(fileId);
     classes.push(currentClass);
-    const content = await file.text();  // Read the file content
+    // Read the file content
+    let content = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        let result = '';
+        const content = reader.result;
+        let detectedEncodings = jschardet.detectAll(reader.result);
+        for (let encodingObj of detectedEncodings) {
+          const decoder = new TextDecoder(encodingObj?.encoding ?? 'utf-8');
+          const uint8Array = new Uint8Array(content.length);
+          for (let i = 0; i < content.length; i++) {
+              uint8Array[i] = content.charCodeAt(i);
+          }
+          result = decoder.decode(uint8Array);
+          if (result.includes('Imię i nazwisko')) {
+            break;
+          }
+        }
+
+        resolve(result);
+      };
+
+      reader.onerror = (error) => {
+        console.error("Error reading file:", error);
+        reject("");
+      };
+
+      reader.readAsBinaryString(file); // its deprecated but only this works
+    });
+
     const lines = content.split('\n');  // Split the content into rows
     let foundHeader = false;  // Flag to mark when we've found the "Imię i Nazwisko" header
     for (let i = 0; i < lines.length; i++) {
       const row = lines[i].trim();  // Trim any leading or trailing spaces
-      const rowData = row.split('\t') // Split by one or more spaces
+      const rowData = row.split(/[\t;]/); // Split by tab(xlsx) and semicolon(csv)
       if (row.startsWith('Godzina rozpoczęcia')) {
         currentClass.date = rowData[1];
       } 
