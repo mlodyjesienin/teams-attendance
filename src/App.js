@@ -88,12 +88,17 @@ const processCsvFiles = async (files) => {
 
 const FileProcessor = () => {
   const [threshold, setThreshold] = useState(50);
+  const [fileType, setFileType] = useState("xlsx");
   const handleThresholdChange = (event) => {
     const value = event.target.value;
     if (value >= 0 && value <= 100) {
       setThreshold(value);
     }
     setThreshold(value);
+  };
+
+  const handleFileTypeChange = (event) => {
+    setFileType(event.target.value);
   };
 
   const handleButtonClick = async () => {
@@ -137,32 +142,33 @@ const FileProcessor = () => {
         });
 
         // Create a Blob for the result file
-        const fileType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8';
-        const data = resultContent.split("\n").map(row => row.split("\t"));
-        const ws = XLSX.utils.json_to_sheet(data, { skipHeader: true });
-        Object.keys(ws).forEach((cell) => { // prevent excel from treating strings as dates
-          if (!cell.startsWith("!")) {
-            ws[cell].t = "s"; // Set cell type to string
-          }
-        });
+        let blob;
+        let fileExtension;
+        if (fileType === "csv") {
+          blob = new Blob([resultContent], { type: "text/csv" });
+          fileExtension = "csv";
+        }
+        else { // xlsx
+          const data = resultContent.split("\n").map(row => row.split("\t"));
+          const ws = XLSX.utils.json_to_sheet(data, { skipHeader: true });
+          Object.keys(ws).forEach((cell) => { // prevent excel from treating strings as dates
+            if (!cell.startsWith("!")) {
+              ws[cell].t = "s"; // Set cell type to string
+            }
+          });
 
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Obecnosci1');
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const blob = new Blob([excelBuffer], { type: fileType });
-        // const blob = new Blob([resultContent], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Obecnosci1');
+          const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+          fileExtension = "xlsx";
+        }
+        
         // Programmatically create a download link
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        const currentDate = new Date().toLocaleDateString("pl-PL", { 
-          day: "2-digit", 
-          month: "2-digit", 
-          year: "numeric" 
-        }).replace(/\//g, '-');
-
-        link.download = `obecności-${currentDate}.xlsx`;
+        link.download = `obecności.${fileExtension}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -179,7 +185,7 @@ const FileProcessor = () => {
   return (
     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
       <h1>Listy obecności z Microsoft Teams</h1>
-      <p>1. Ustaw próg procentowego czasu udziału w zajęciach od którego uznawana jest obecność.</p>
+      <p>1. Ustaw próg procentowego czasu udziału w zajęciach od którego uznawana jest obecność. (Uwaga: czas udziału prowadzącego zajęcia jest uznawany jako 100% czasu zajęć) </p>
       <p>2. Wgraj listy obecności pobrane z Teams klikając przycisk.</p>
       <p>3. Automatycznie zostanie wygenerowany i pobrany plik z łącznymi statystykami obecności dla każdego studenta.</p>
       <input
@@ -191,16 +197,23 @@ const FileProcessor = () => {
         style={{ maxWidth: "100%", width: "300px" }}
       />
       <div style={{ marginTop: "10px" }}>
-        <strong>Próg:</strong>
+        <strong>Próg: </strong>
         <input
           type="number"
           value={threshold}
           onChange={handleThresholdChange}
           min="0"
           max="100"
-          style={{ width: "60px", textAlign: "center" }}
+          style={{ width: "50px", textAlign: "center" }}
         />
       </div>
+      <br></br>
+      <strong>Format zwracanego pliku: </strong>
+      <select value={fileType} onChange={handleFileTypeChange}>
+        <option value="xlsx">Excel</option>
+        <option value="csv">CSV</option>
+      </select>
+      <br></br>
       <br></br>
       <button
         onClick={handleButtonClick}
