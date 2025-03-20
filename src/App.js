@@ -119,6 +119,7 @@ const processCsvFiles = async (files) => {
 const FileProcessor = () => {
   const [threshold, setThreshold] = useState(50);
   const [fileType, setFileType] = useState("xlsx");
+  const [resultData, setResultData] = useState(null);
   const handleThresholdChange = (event) => {
     const value = event.target.value;
     if (value >= 0 && value <= 100) {
@@ -152,11 +153,11 @@ const FileProcessor = () => {
 
         await processCsvFiles(files);
         let resultContent = classes[0]?.title + "\r\n";
-        resultContent += "\t ";
+        resultContent += "Imię i nazwisko\t ";
         for(const class_ of classes) {
           resultContent += class_.date + "\t "
         }
-        resultContent += "\r\n";
+        resultContent += "ilość obecności\r\n";
 
         Object.entries(students).forEach(([key, student]) => {
           resultContent += `${student.fullName}\t `;
@@ -174,12 +175,17 @@ const FileProcessor = () => {
         // Create a Blob for the result file
         let blob;
         let fileExtension;
+        const data = resultContent.split("\n").map(row => row.split("\t"));
+        data.forEach(row => {
+          const lastColumn = row.pop(); // Remove the last column
+          row.splice(1, 0, lastColumn); // Insert the last column into the second position
+        });
+        setResultData(data);
         if (fileType === "csv") {
           blob = new Blob([resultContent], { type: "text/csv" });
           fileExtension = "csv";
         }
-        else { // xlsx
-          const data = resultContent.split("\n").map(row => row.split("\t"));
+        else if (fileType === "xlsx") {
           const ws = XLSX.utils.json_to_sheet(data, { skipHeader: true });
           Object.keys(ws).forEach((cell) => { // prevent excel from treating strings as dates
             if (!cell.startsWith("!")) {
@@ -194,17 +200,17 @@ const FileProcessor = () => {
           fileExtension = "xlsx";
         }
         
-        // Programmatically create a download link
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `obecności.${fileExtension}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        // Release the object URL
-        URL.revokeObjectURL(url);
+        if (blob) {
+          // Programmatically create a download link
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `obecności.${fileExtension}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url); // Release the object URL
+        }
       };
     } catch (error) {
       console.error("Error processing files:", error);
@@ -213,52 +219,87 @@ const FileProcessor = () => {
   };
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
-      <h1>Listy obecności z Microsoft Teams</h1>
-      <p>1. Ustaw próg procentowego czasu udziału w zajęciach od którego uznawana jest obecność. (Uwaga: czas udziału prowadzącego zajęcia jest uznawany jako 100% czasu zajęć) </p>
-      <p>2. Wgraj listy obecności pobrane z Teams klikając przycisk.</p>
-      <p>3. Automatycznie zostanie wygenerowany i pobrany plik z łącznymi statystykami obecności dla każdego studenta.</p>
-      <input
-        type="range"
-        min="0"
-        max="100"
-        value={threshold}
-        onChange={handleThresholdChange}
-        style={{ maxWidth: "100%", width: "300px" }}
-      />
-      <div style={{ marginTop: "10px" }}>
-        <strong>Próg: </strong>
-        <input
-          type="number"
-          value={threshold}
-          onChange={handleThresholdChange}
-          min="0"
-          max="100"
-          style={{ width: "50px", textAlign: "center" }}
-        />
+    <div className="p-5 font-sans flex flex-col justify-start items-center min-h-screen overflow-y-auto">
+      <h2 className="text-2xl font-bold text-center mb-6">Listy obecności z Microsoft Teams</h2>
+
+      <div className="text-left w-full max-w-6xl mb-2">
+        <p className="mb-2">1. Ustaw próg procentowego czasu udziału w zajęciach od którego uznawana jest obecność. (Uwaga: czas udziału prowadzącego zajęcia jest uznawany jako 100% czasu zajęć)</p>
+        <p className="mb-2">2. Wgraj listy obecności pobrane z Teams klikając przycisk.</p>
+        <p className="mb-2">3. Automatycznie zostanie wygenerowany i pobrany plik z łącznymi statystykami obecności dla każdego studenta.</p>
+        
+        <div className="w-full max-w-md mb-1">
+          <div className="flex items-center justify-between">
+            <strong>Próg: </strong>
+            <input
+              type="number"
+              value={threshold}
+              onChange={handleThresholdChange}
+              min="0"
+              max="100"
+              className="w-16 text-center border-2 border-gray-300 rounded-lg p-1 ml-1"
+            />
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={threshold}
+              onChange={handleThresholdChange}
+              className="w-full ml-1"
+            />
+          </div>
+        </div>
+
+        <div className="mb-2">
+          <strong>Format zwracanego pliku: </strong>
+          <select value={fileType} onChange={handleFileTypeChange} className="border-2 border-gray-300 rounded-lg p-2">
+            <option value="xlsx">Excel</option>
+            <option value="csv">CSV</option>
+            <option value="noFile">Nie pobieraj pliku</option>
+          </select>
+        </div>
+
+        <button
+          onClick={handleButtonClick}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none"
+        >
+          Wybierz pliki z obecnościami
+        </button>
       </div>
-      <br></br>
-      <strong>Format zwracanego pliku: </strong>
-      <select value={fileType} onChange={handleFileTypeChange}>
-        <option value="xlsx">Excel</option>
-        <option value="csv">CSV</option>
-      </select>
-      <br></br>
-      <br></br>
-      <button
-        onClick={handleButtonClick}
-        style={{
-          padding: "10px 20px",
-          backgroundColor: "#007BFF",
-          color: "white",
-          border: "none",
-          borderRadius: "5px",
-          cursor: "pointer",
-        }}
-      >
-        Wybierz pliki z obecnościami
-      </button>
+
+      {resultData && resultData.length > 0 && (
+        <>
+          <h2 className="text-2xl font-bold text-center mt-8">{resultData[0]}</h2>
+          <div className="p-4 overflow-x-auto max-w-full mx-auto">
+            <table className="w-full border border-gray-300 shadow-lg rounded-lg overflow-hidden">
+              <thead className="bg-blue-500 text-white">
+                <tr>
+                  {resultData[1].map((header, index) => (
+                    <th key={index} className="p-3 text-left border-b border-gray-300">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {resultData.slice(2).map((row, rowIndex) => (
+                  <tr
+                    key={rowIndex}
+                    className="border-b border-gray-200 hover:bg-gray-100 transition-all"
+                  >
+                    {row.map((cell, cellIndex) => (
+                      <td key={cellIndex} className="p-3">
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
+
   );
 };
 
