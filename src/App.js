@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { convertToSeconds } from "./timeConverter";
 import * as XLSX from "xlsx";
 import jschardet from "jschardet";
@@ -117,9 +117,22 @@ const processCsvFiles = async (files) => {
 };
 
 const FileProcessor = () => {
-  const [threshold, setThreshold] = useState(50);
-  const [fileType, setFileType] = useState("xlsx");
+  const [threshold, setThreshold] = useState(() => {
+    return localStorage.getItem("threshold") ? Number(localStorage.getItem("threshold")) : 50;
+  });
+  const [fileType, setFileType] = useState(() => {
+    return localStorage.getItem("fileType") || "xlsx";
+  });
   const [resultData, setResultData] = useState(null);
+
+  useEffect(() => {
+    localStorage.setItem("threshold", threshold);
+  }, [threshold]);
+
+  useEffect(() => {
+    localStorage.setItem("fileType", fileType);
+  }, [fileType]);
+
   const handleThresholdChange = (event) => {
     const value = event.target.value;
     if (value >= 0 && value <= 100) {
