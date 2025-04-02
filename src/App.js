@@ -124,6 +124,8 @@ const FileProcessor = () => {
     return localStorage.getItem("fileType") || "xlsx";
   });
   const [resultData, setResultData] = useState(null);
+  const [filteredResultData, setFilteredResultData] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     localStorage.setItem("threshold", threshold);
@@ -157,6 +159,7 @@ const FileProcessor = () => {
       input.click();
 
       input.onchange = async (event) => {
+        setSearchQuery("");
         const files = Array.from(event.target.files);
 
         if (files.length === 0) {
@@ -188,12 +191,18 @@ const FileProcessor = () => {
         // Create a Blob for the result file
         let blob;
         let fileExtension;
-        const data = resultContent.split("\n").map(row => row.split("\t"));
+        let data = resultContent.split("\n").map(row => row.split("\t"));
         data.forEach(row => {
           const lastColumn = row.pop(); // Remove the last column
           row.splice(1, 0, lastColumn); // Insert the last column into the second position
         });
+
+        const header = [data[0], data[1]];
+        const sortedData = data.slice(2, -1).sort((a, b) => a[0].localeCompare(b[0]));
+        data = [...header, ...sortedData];
+
         setResultData(data);
+        setFilteredResultData(sortedData);
         if (fileType === "csv") {
           blob = new Blob([resultContent], { type: "text/csv" });
           fileExtension = "csv";
@@ -282,6 +291,22 @@ const FileProcessor = () => {
       {resultData && resultData.length > 0 && (
         <>
           <h2 className="text-2xl font-bold text-center mt-8">{resultData[0]}</h2>
+          <div className="w-full max-w-md mx-auto mt-2 mb-0">
+            <input
+              type="text"
+              placeholder="Szukaj..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                const searchTerm = e.target.value.toLowerCase();
+                const filteredData = resultData.slice(2).filter((row) =>
+                  row.some((cell) => cell.toString().toLowerCase().includes(searchTerm))
+                );
+                setFilteredResultData(filteredData ?? []);
+              }}
+              className="w-full p-2 border border-gray-300 rounded-lg"
+            />
+          </div>
           <div className="p-4 overflow-x-auto max-w-full mx-auto">
             <table className="w-full border border-gray-300 shadow-lg rounded-lg overflow-hidden">
               <thead className="bg-blue-500 text-white">
@@ -294,7 +319,7 @@ const FileProcessor = () => {
                 </tr>
               </thead>
               <tbody className="bg-white">
-                {resultData.slice(2).map((row, rowIndex) => (
+                {filteredResultData.map((row, rowIndex) => (
                   <tr
                     key={rowIndex}
                     className="border-b border-gray-200 hover:bg-gray-100 transition-all"
