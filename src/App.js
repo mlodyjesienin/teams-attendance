@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import { convertToSeconds } from "./timeConverter";
 import * as XLSX from "xlsx";
 import jschardet from "jschardet";
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+dayjs.extend(customParseFormat);
 
 let classes = []; // Class array
 let students = {}; // Students dict, key is a student fullName and the value is a Student class.
@@ -81,6 +85,12 @@ const processCsvFiles = async (files) => {
       const rowData = row.split(/[\t;]/); // Split by tab(xlsx) and semicolon(csv)
       if (row.startsWith('Godzina rozpoczęcia')) {
         currentClass.date = rowData[1];
+        const parsed = dayjs(currentClass.date, "M/D/YY, h:mm:ss A");
+        if (parsed.isValid()) {
+          currentClass.date = parsed.format("D.MM.YY HH:mm");
+        } else {
+          currentClass.date += "(błąd przy formatowaniu daty, zgłoś to do autora wraz z wgrywanym plikiem)";
+        }
       } 
       else if (row.startsWith('Tytuł spotkania')) {
         currentClass.title = rowData[1];
@@ -168,6 +178,8 @@ const FileProcessor = () => {
         }
 
         await processCsvFiles(files);
+
+        classes = classes.sort((a, b) => dayjs(a.date, "D.MM.YY HH:mm").valueOf() > dayjs(b.date, "D.MM.YY HH:mm").valueOf() ? 1 : -1);
         let resultContent = classes[0]?.title + "\r\n";
         resultContent += "Imię i nazwisko\t ";
         for(const class_ of classes) {
@@ -178,6 +190,7 @@ const FileProcessor = () => {
         Object.entries(students).forEach(([key, student]) => {
           resultContent += `${student.fullName}\t `;
           let classesPresentAmount = 0;
+
           for(const class_ of classes) {
             const studentTime = student.attendances[class_.id]?.time ?? 0;
             const percent = studentTime / class_.orgaznizatorTime * 100;
@@ -260,6 +273,7 @@ const FileProcessor = () => {
               max="100"
               className="w-16 text-center border-2 border-gray-300 rounded-lg p-1 ml-1"
             />
+            <span>%</span>
             <input
               type="range"
               min="0"
