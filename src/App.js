@@ -255,8 +255,11 @@ const FileProcessor = () => {
 
   return (
     <div className="p-5 font-sans flex flex-col justify-start items-center min-h-screen overflow-y-auto">
+      <div className="hidden md:block absolute top-4 right-4 text-sm text-gray-500 text-right">
+        <div>Szymon Zieliński</div>
+        <div>zielinski.szy@gmail.com</div>
+      </div>
       <h2 className="text-2xl font-bold text-center mb-6">Listy obecności z Microsoft Teams</h2>
-
       <div className="text-left w-full max-w-6xl mb-2">
         <p className="mb-2">1. Ustaw próg procentowego czasu udziału w zajęciach od którego uznawana jest obecność. (Uwaga: czas udziału prowadzącego zajęcia jest uznawany jako 100% czasu zajęć)</p>
         <p className="mb-2">2. Wgraj listy obecności pobrane z Teams klikając przycisk.</p>
