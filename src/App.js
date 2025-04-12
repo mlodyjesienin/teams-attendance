@@ -9,6 +9,7 @@ dayjs.extend(customParseFormat);
 
 let classes = []; // Class array
 let students = {}; // Students dict, key is a student fullName and the value is a Student class.
+let errorsGlobalList = []; // Errors array
 
 class StudentAttendance {
   classId = null;
@@ -45,83 +46,93 @@ const processCsvFiles = async (files) => {
   students = {};
   let fileId = 0;
   for (const file of files) {
-    fileId++;
-    const currentClass = new Class(fileId);
-    classes.push(currentClass);
-    // Read the file content
-    let content = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        let result = '';
-        const content = reader.result;
-        let detectedEncodings = jschardet.detectAll(reader.result);
-        for (let encodingObj of detectedEncodings) {
-          const decoder = new TextDecoder(encodingObj?.encoding ?? 'utf-8');
-          const uint8Array = new Uint8Array(content.length);
-          for (let i = 0; i < content.length; i++) {
-              uint8Array[i] = content.charCodeAt(i);
+    try {
+      fileId++;
+      const currentClass = new Class(fileId);
+      classes.push(currentClass);
+      // Read the file content
+      let content = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          let result = '';
+          const content = reader.result;
+          let detectedEncodings = jschardet.detectAll(reader.result);
+          for (let encodingObj of detectedEncodings) {
+            const decoder = new TextDecoder(encodingObj?.encoding ?? 'utf-8');
+            const uint8Array = new Uint8Array(content.length);
+            for (let i = 0; i < content.length; i++) {
+                uint8Array[i] = content.charCodeAt(i);
+            }
+            result = decoder.decode(uint8Array);
+            if (result.includes('Imię i nazwisko')) {
+              break;
+            }
           }
-          result = decoder.decode(uint8Array);
-          if (result.includes('Imię i nazwisko')) {
-            break;
+
+          resolve(result);
+        };
+
+        reader.onerror = (error) => {
+          console.error("Error reading file:", error);
+          errorsGlobalList.push(`Błąd przy czytaniu pliku: ${file.name}. Sprawdź format pliku.`);
+          reject("");
+        };
+
+        reader.readAsBinaryString(file); // its deprecated but only this works
+      });
+
+      const lines = content.split('\n');  // Split the content into rows
+      let foundHeader = false;  // Flag to mark when we've found the "Imię i Nazwisko" header
+      for (let i = 0; i < lines.length; i++) {
+        const row = lines[i].trim();  // Trim any leading or trailing spaces
+        const rowData = row.split(/[\t;]/); // Split by tab(xlsx) and semicolon(csv)
+        if (row.startsWith('Godzina rozpoczęcia')) {
+          currentClass.date = rowData[1];
+          const parsed = dayjs(currentClass.date, "M/D/YY, h:mm:ss A");
+          if (parsed.isValid()) {
+            currentClass.date = parsed.format("D.MM.YY HH:mm");
+          } else {
+            currentClass.date = rowData[1] + "(błąd przy formatowaniu daty, zgłoś to do autora wraz z wgrywanym plikiem)";
           }
+        } 
+        else if (row.startsWith('Tytuł spotkania')) {
+          currentClass.title = rowData[1];
         }
 
-        resolve(result);
-      };
-
-      reader.onerror = (error) => {
-        console.error("Error reading file:", error);
-        reject("");
-      };
-
-      reader.readAsBinaryString(file); // its deprecated but only this works
-    });
-
-    const lines = content.split('\n');  // Split the content into rows
-    let foundHeader = false;  // Flag to mark when we've found the "Imię i Nazwisko" header
-    for (let i = 0; i < lines.length; i++) {
-      const row = lines[i].trim();  // Trim any leading or trailing spaces
-      const rowData = row.split(/[\t;]/); // Split by tab(xlsx) and semicolon(csv)
-      if (row.startsWith('Godzina rozpoczęcia')) {
-        currentClass.date = rowData[1];
-        const parsed = dayjs(currentClass.date, "M/D/YY, h:mm:ss A");
-        if (parsed.isValid()) {
-          currentClass.date = parsed.format("D.MM.YY HH:mm");
-        } else {
-          currentClass.date += "(błąd przy formatowaniu daty, zgłoś to do autora wraz z wgrywanym plikiem)";
+        if (!foundHeader && row.includes('Imię i nazwisko')) {
+          foundHeader = true;  // Mark that we've found the header
+          continue;
         }
-      } 
-      else if (row.startsWith('Tytuł spotkania')) {
-        currentClass.title = rowData[1];
-      }
-
-      if (!foundHeader && row.includes('Imię i nazwisko')) {
-        foundHeader = true;  // Mark that we've found the header
-        continue;
-      }
-      
-      if (!foundHeader){
-        continue;
-      }
-
-      if (row === '') {
-        // Stop when we reach an empty row (no data in the first column)
-        break;
-      }
-
-      const fullName = rowData[0]; // The first column should be the name-surname
-      if (rowData[6] && rowData[6].trim().toLowerCase() === 'organizator') {
-        const timeInSeconds = convertToSeconds(rowData[3]);
-        currentClass.orgaznizatorTime = timeInSeconds;
-      }
-      if (rowData[6] && rowData[6].trim().toLowerCase() !== 'organizator') {
-        if (!(fullName in students)) {
-          students[fullName] = new Student(fullName);
+        
+        if (!foundHeader){
+          continue;
         }
-        const timeInSeconds = convertToSeconds(rowData[3]);
-        students[fullName].attendances[fileId] = new StudentAttendance(fileId, timeInSeconds);
+
+        if (row === '') {
+          // Stop when we reach an empty row (no data in the first column)
+          break;
+        }
+
+        const fullName = rowData[0]; // The first column should be the name-surname
+        if (rowData[6] && rowData[6].trim().toLowerCase() === 'organizator') {
+          const timeInSeconds = convertToSeconds(rowData[3]);
+          currentClass.orgaznizatorTime = timeInSeconds;
+        }
+        if (rowData[6] && rowData[6].trim().toLowerCase() !== 'organizator') {
+          if (!(fullName in students)) {
+            students[fullName] = new Student(fullName);
+          }
+          const timeInSeconds = convertToSeconds(rowData[3]);
+          students[fullName].attendances[fileId] = new StudentAttendance(fileId, timeInSeconds);
+        }
       }
+
+      if (!foundHeader || !lines?.length) {
+        errorsGlobalList.push(`Niepoprawny format pliku: ${file.name}.`);
+      }
+    } catch (error) {
+      console.error("Error processing file:", file.name, error);
+      errorsGlobalList.push(`Błąd przy procesowaniu pliku: ${file.name}. Sprawdź format pliku.`);
     }
   }
 };
@@ -136,6 +147,7 @@ const FileProcessor = () => {
   const [resultData, setResultData] = useState(null);
   const [filteredResultData, setFilteredResultData] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [errors, setErrors] = useState([]);
 
   useEffect(() => {
     localStorage.setItem("threshold", threshold);
@@ -178,6 +190,7 @@ const FileProcessor = () => {
         }
 
         await processCsvFiles(files);
+        setErrors(errorsGlobalList);
 
         classes = classes.sort((a, b) => dayjs(a.date, "D.MM.YY HH:mm").valueOf() > dayjs(b.date, "D.MM.YY HH:mm").valueOf() ? 1 : -1);
         let resultContent = classes[0]?.title + "\r\n";
@@ -257,7 +270,8 @@ const FileProcessor = () => {
     <div className="p-5 font-sans flex flex-col justify-start items-center min-h-screen overflow-y-auto">
       <div className="hidden md:block absolute top-4 right-4 text-sm text-gray-500 text-right">
         <div>Szymon Zieliński</div>
-        <div>zielinski.szy@gmail.com</div>
+        <div>Filip Zieliński</div>
+        <div>kontakt: zielinski.szy@gmail.com</div>
       </div>
       <h2 className="text-2xl font-bold text-center mb-6">Listy obecności z Microsoft Teams</h2>
       <div className="text-left w-full max-w-6xl mb-2">
@@ -304,6 +318,17 @@ const FileProcessor = () => {
           Wybierz pliki z obecnościami
         </button>
       </div>
+
+      {errors.length > 0 && (
+        <div className="w-full max-w-6xl mt-4 mb-2">
+          <h2 className="text-xl font-bold text-red-600">Wystąpiły błędy:</h2>
+          <ul className="list-disc list-inside text-red-600">
+            {errors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {resultData && resultData.length > 0 && (
         <>
